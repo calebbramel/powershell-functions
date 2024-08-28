@@ -1,9 +1,7 @@
 # Rotate Expiring Secret
 
-## Version
-1.0
-
 ## Description
+Event-Driven Runbook to rotate secrets on a weekly basis.
 Ingests webhook from Azure Event listener, then attempts to find a matching app registration.
 If exists, generate a new client secret and upload to KeyVault.
 Search ADO Projects for connections using the AppRegistration, and updates the connection secret.
@@ -14,6 +12,7 @@ Afterward, delete secrets for the specified application with an expiry in the pa
 ## Requirements
 
 ### Azure
+- Runbook with Webhook & Managed Identity
 - Read Access to target Subscription(s)
 
 ### Azure DevOps
