@@ -8,9 +8,10 @@ This PowerShell function rotates the basic authentication credentials for a spec
 * User: The username for which the credentials are being rotated.
 
 # Requirements
+* PowerShell 7
 * `Az.ApiManagement` PowerShell Module
-* Contributor Access over API Manager
 * `Get-RandomPassword` Function
+* Contributor Access over API Manager
 
 # Usage
 To use the Rotate-BasicAuthCredentials function, define the parameters in a hash table and call the function with the hash table using splatting.
