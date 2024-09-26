@@ -6,13 +6,6 @@ Function Rotate-BasicAuthCredentials {
         [string]$SubscriptionID,
         [string]$User
     )
-
-    Write-Output("ApiID: $ApiID")
-    Write-Output("ApiManagementService: $ApiManagementService")
-    Write-Output("ResourceGroupName: $ResourceGroupName")
-    Write-Output("SubscriptionID: $SubscriptionID")
-    Write-Output("User: $User")
-
     <# Authentication #>
     try {
         Write-Output("Authenticating to Azure")
