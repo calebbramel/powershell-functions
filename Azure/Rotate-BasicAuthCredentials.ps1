@@ -1,6 +1,6 @@
 Function Rotate-BasicAuthCredentials {
     param (
-        [string]$ApiID,
+        [string]$ApiId,
         [string]$ApiManagementService,
         [string]$ResourceGroupName,
         [string]$SubscriptionID,
@@ -10,7 +10,7 @@ Function Rotate-BasicAuthCredentials {
     try {
         Write-Output("Authenticating to Azure")
         Connect-AzAccount -Identity
-        Set-AzContext -SubscriptionID $subscriptionID
+        Set-AzContext -SubscriptionID $SubscriptionID
     }
     catch{
         Write-Output("Error authenticating to Azure")
@@ -20,8 +20,8 @@ Function Rotate-BasicAuthCredentials {
     <# Process #>
     try{
         Write-Output("Downloading API Policy")
-        $apimContext = New-AzApiManagementContext -resourcegroupname $resourceGroupname -servicename $APIManagementService      
-        Get-AzApiManagementPolicy -context $apimContext -ApiID $ApiID -SaveAs "$pwd/APIPolicy.xml"
+        $apimContext = New-AzApiManagementContext -ResourceGroupName $ResourceGroupName -ServiceName $ApiManagementService      
+        Get-AzApiManagementPolicy -context $apimContext -ApiId $ApiId -SaveAs "$pwd/APIPolicy.xml"
     }
     catch{
         Write-Output("Error downloading API Policy")
@@ -37,16 +37,16 @@ Function Rotate-BasicAuthCredentials {
 
         # Extract current passwords from the condition attribute
         $condition = $xml.policies.inbound.choose.when.condition
-        $pattern = "$($user):([^""]+)"
+        $pattern = "$($User):([^""]+)"
         $matches = [regex]::Matches($condition, $pattern)
 
         $cred1 = $matches.Value[0]
         $cred2 = $matches.Value[1]
 
         # Cred1, Cred2 = Cred2, NewPassword
-        Write-Output("`nReplacing '$Cred2' with '$($user):$newPassword'")
+        Write-Output("`nReplacing '$Cred2' with '$($User):$newPassword'")
         Write-Output("Replacing '$Cred1' with '$Cred2'")
-        $condition = $condition -replace [regex]::Escape($cred2), "$($user):$newPassword"
+        $condition = $condition -replace [regex]::Escape($cred2), "$($User):$newPassword"
         $condition = $condition -replace [regex]::Escape($cred1), $cred2
 
         $xml.policies.inbound.choose.when.condition = $condition
@@ -63,7 +63,7 @@ Function Rotate-BasicAuthCredentials {
     }
     try{
         Write-Output("Updating API Policy")
-        Set-AzApiManagementPolicy -Context $apimContext -ApiId $apiID -Policy $policyContent
+        Set-AzApiManagementPolicy -Context $apimContext -ApiId $ApiId -Policy $policyContent
     }
     catch{
         Write-Output("Error updating API Policy")
