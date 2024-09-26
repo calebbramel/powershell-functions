@@ -1,7 +1,7 @@
 This PowerShell function rotates the basic authentication credentials for a specified API in Azure API Management.
 
 # Parameters
-* ApiID: The ID of the API for which the credentials are being rotated.
+* ApiID: The ID of the API to target the default inbound policy.
 * ApiManagementService: The name of the API Management service instance.
 * ResourceGroupName: The name of the resource group containing the API Management service.
 * SubscriptionID: The subscription ID associated with the API Management service.
