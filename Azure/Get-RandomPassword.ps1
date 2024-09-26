@@ -1,12 +1,14 @@
 function Get-RandomPassword {
-    $PasswordLength = 3
+    param (
+        [int]$PasswordLength = 3
+    )
 
     $SourceWords = 'Adams', 'Alpha', 'Boston', 'Bravo', 'Charlie', 'Chicago', 'Delta', 'Denver', 'Easy',
                    'Echo', 'Foxtrot', 'Frank', 'George', 'Golf', 'Henry', 'Hotel', 'Ida', 'India', 'John', 
                    'Juliet', 'Kilo', 'King', 'Lima', 'Lincoln', 'Mary', 'Mike', 'November', 'Ocean', 'Oscar', 
                    'Papa', 'Peter', 'Quebec', 'Queen', 'Roger', 'Romeo', 'Sierra', 'Sugar', 'Tango', 'Thomas', 
                    'Uniform', 'Union', 'Victor', 'Whiskey', 'William', 'Yankee', 'Young', 'Zulu'
-    $SourceNumbers = 0..9
+    $SourceNumbers = 0..100
 
     $PasswordWords = @()
 
