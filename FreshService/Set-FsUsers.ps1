@@ -16,6 +16,11 @@ $FsAdminADGroups = @{
     "ACC-APP-FreshService-GlobalAdmins" = 33333333333 # Account Admin
 }
 
+$FsRequesterADGroups = @{
+    # Admin groups are global by default and cannot be scoped to groups.
+    "ACC-APP-FreshService-Requesters1" = 44444444444 # Change Manager
+}
+
 function Convert-UPNToURLEncoded {
     param (
         [string]$UPN,
@@ -36,13 +41,31 @@ function Convert-UPNToURLEncoded {
 
 
 function Set-FsUsers {
-    $token = Get-AutomationVariable -Name "FreshServiceAPIKey"
+    param (
+        $token,
+        $credential,
+        $adDomain,
+        $fsDomain
+    )
     $headers = @{
         "Content-Type" = "application/json";
         Authorization = "Basic $token" 
     }
-    $credential = Get-AutomationPSCredential -Name 'ServiceAccount'
-    $adDomain = "ad.contoso.com"
+    
+    foreach ($group in $FsRequesterADGroups.GetEnumerator()) {
+        Write-Output("Setting users from $($group.Key)")
+        $groupMembers = Get-AdGroupMember -server $adDomain -identity $group.Key -Recursive -credential $credential | Where-Object { $_.objectClass -eq 'user' }
+        foreach ($samAccountName in $groupMembers.samAccountName) {
+            $user = Get-ADUser -server $adDomain -Identity $samAccountName -credential $credential -Properties extensionAttribute3, UserPrincipalName
+            $uri = "https://$($fsDomain).freshservice.com/api/v2/requesters?$(Convert-UPNToURLEncoded $user.UserPrincipalName)"
+            $fsUserID = ((Invoke-RestMethod -Headers $headers -Method GET -Uri $uri).requesters[0]).id
+            Start-Sleep 1
+            Invoke-RestMethod -Headers $headers -Method POST "https://$($fsDomain).freshservice.com/api/v2/requester_groups/23000067784/members/$fsUserID"
+        }
+        Write-Output("`nCurrent members:")
+        (Invoke-RestMethod -Headers $headers -Method GET "https://$($fsDomain).freshservice.com/api/v2/requester_groups/23000067784/members").requesters
+    }
+
     foreach ($group in $FsAgentADGroups.GetEnumerator()) {
         $fsGroupMembers = @()
         Write-Output("Setting users from $($group.Key)")
@@ -89,5 +112,3 @@ function Set-FsUsers {
         (Invoke-RestMethod -Uri "https://$($FsDomain).freshservice.com/api/v2/groups/$($group.value.fsGroup)" -Method Put -Headers $headers -Body $groupBody).Value
     }
 }
-
-Set-FsUsers
