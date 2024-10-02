@@ -1,26 +1,3 @@
-$FsAgentADGroups = @{
-    # AD Group = @{ roleID; groupID } 
-    "ACC-APP-FreshService-Group1" = [PSCustomObject]@{
-        fsroleID = 00000000000 # IT Agent 'role'
-        fsGroup = $Group1Int   # Member of Group1
-    }
-    "ACC-APP-FreshService-Group2" = [PSCustomObject]@{
-        fsroleID = 11111111111 # IT Supervisor 'role'
-        fsGroup = $Group2Int   # Member of Group2
-    }
-}
-
-$FsAdminADGroups = @{
-    # Admin groups are global by default and cannot be scoped to groups.
-    "ACC-APP-FreshService-Admins" = 22222222222       # ITSM Admin
-    "ACC-APP-FreshService-GlobalAdmins" = 33333333333 # Account Admin
-}
-
-$FsRequesterADGroups = @{
-    # Admin groups are global by default and cannot be scoped to groups.
-    "ACC-APP-FreshService-Requesters1" = 44444444444 # Change Manager
-}
-
 function Convert-UPNToURLEncoded {
     param (
         [string]$UPN,
@@ -37,8 +14,6 @@ function Convert-UPNToURLEncoded {
     
     return $formattedString
 }
-
-
 
 function Set-FsUsers {
     param (
