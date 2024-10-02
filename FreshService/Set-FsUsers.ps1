@@ -58,12 +58,13 @@ function Set-FsUsers {
         foreach ($samAccountName in $groupMembers.samAccountName) {
             $user = Get-ADUser -server $adDomain -Identity $samAccountName -credential $credential -Properties extensionAttribute3, UserPrincipalName
             $uri = "https://$($fsDomain).freshservice.com/api/v2/requesters?$(Convert-UPNToURLEncoded $user.UserPrincipalName)"
+            $groupId = $($FsRequesterADGroups[$group.Key]
             $fsUserID = ((Invoke-RestMethod -Headers $headers -Method GET -Uri $uri).requesters[0]).id
             Start-Sleep 1
-            Invoke-RestMethod -Headers $headers -Method POST "https://$($fsDomain).freshservice.com/api/v2/requester_groups/23000067784/members/$fsUserID"
+            Invoke-RestMethod -Headers $headers -Method POST "https://$($fsDomain).freshservice.com/api/v2/requester_groups/$($groupId)/members/$fsUserID"
         }
         Write-Output("`nCurrent members:")
-        (Invoke-RestMethod -Headers $headers -Method GET "https://$($fsDomain).freshservice.com/api/v2/requester_groups/23000067784/members").requesters
+        (Invoke-RestMethod -Headers $headers -Method GET "https://$($fsDomain).freshservice.com/api/v2/requester_groups/$($groupId)/members").requesters
     }
 
     foreach ($group in $FsAgentADGroups.GetEnumerator()) {
