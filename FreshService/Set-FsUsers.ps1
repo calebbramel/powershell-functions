@@ -1,27 +1,4 @@
-$FsRequesterADGroups = @{
-    "FsChangeRequesters" = 00000000000
-}
-$FsAgentADGroups = @{
-    # AD Group = @{ roleID; groupID; [optional]scope } 
-
-    "FreshService-Group1" = [PSCustomObject]@{
-        fsroleID = 11111111111 # IT Agent 'role'
-        fsGroup  = 22222222222 # Member of CloudEng
-        scope    = 'entire_helpdesk'
-    }
-}
-
-$FsGlobalADGroups = @{
-    # Admin groups are scoped to the workspace by default and cannot be scoped to groups.
-    "FsAccountAdmin"     = 33333333333 # Account Admin, Most privilaged
-
-    # Agent Roles to be used globally
-    "FsMajorIncidentPromoters" = 44444444444
-}
-
-# Assign just the Global Groups to users in the 'NoGroup' AD Group
-$noGroup = "FreshService-NoGroup"
-
+# Need to convert UPNs to url-encoded strings for ID lookup
 function Convert-UPNToURLEncoded {
     param (
         [string]$UPN,
@@ -48,20 +25,27 @@ function Set-FsUsers {
         [string]$token
     )
 
+    # HTTP Headers for all subsequent API calls
     $headers = @{
         "Content-Type" = "application/json";
         Authorization = "Basic $token" 
     }
     
     foreach ($group in $FsRequesterADGroups.GetEnumerator()) {
-        Write-Output("Setting users from $($group.Key)")
         $groupMembers = Get-AdGroupMember -server $adDomain -identity $group.Key -Recursive -credential $credential | Where-Object { $_.objectClass -eq 'user' }
+        if ($groupMembers) {
+                Write-Output("Setting users from $($group.Key)")
+        }
         foreach ($samAccountName in $groupMembers.samAccountName) {
+            # Get AD User
             $user = Get-ADUser -server $adDomain -Identity $samAccountName -credential $credential -Properties extensionAttribute3, UserPrincipalName
+            # Parse FreshService ID
             $uri = "https://$($fsDomain).freshservice.com/api/v2/requesters?$(Convert-UPNToURLEncoded $user.UserPrincipalName)"
-            $groupId = $FsRequesterADGroups[$group.Key]
             $fsUserID = ((Invoke-RestMethod -Headers $headers -Method GET -Uri $uri).requesters[0]).id
-            Start-Sleep 1
+            # Pause to avoid Rate Limit
+            Start-Sleep -Milliseconds 333
+            # Update Group Membership
+            $groupId = $FsRequesterADGroups[$group.Key]
             Invoke-RestMethod -Headers $headers -Method POST "https://$($fsDomain).freshservice.com/api/v2/requester_groups/$($groupId)/members/$fsUserID"
         }
         Write-Output("`nCurrent members:")
@@ -69,15 +53,24 @@ function Set-FsUsers {
     }
 
     foreach ($group in $FsAgentADGroups.GetEnumerator()) {
+        # Create Empty Array for Group Membership
         $fsGroupMembers = @()
-        Write-Output("Setting users from $($group.Key)")
+
         $groupMembers = Get-AdGroupMember -server $adDomain -identity "$($group.Key)-Members" -Recursive -credential $credential | Where-Object { $_.objectClass -eq 'user' }
+        if ($groupMembers) {
+            Write-Output("Setting users from $($group.Key)")
+        }
+
         foreach ($samAccountName in $groupMembers.samAccountName) {
+            # Get AD User
             $user = Get-ADUser -server $adDomain -Identity $samAccountName -credential $credential -Properties extensionAttribute3, UserPrincipalName
+
+            # Parse FreshService Info
             $fsUser = (Invoke-RestMethod -Headers $headers -Method GET -Uri "https://$($FsDomain).freshservice.com/api/v2/requesters?include_agents=true&$(Convert-UPNToURLEncoded $user.UserPrincipalName)").requesters[0]
             
             # Requester to Agent Conversion
             if (-not($fsUser.is_agent) -and (-not($fsUser -eq $null))) {
+                # Skip conversion if flagged false
                 if(-not($convertRequesters)) {
                     continue  
                 } 
@@ -94,20 +87,28 @@ function Set-FsUsers {
             # Agent Role Gathering
             if ($group.value.fsGroup -like (Invoke-RestMethod -Headers $headers -Method GET -Uri "https://$($FsDomain).freshservice.com/api/v2/agents?$(Convert-UPNToURLEncoded -agent $user.UserPrincipalName)").agents[0].member_of) {
 
+                # If scope not defined, make scope workspace
                 if ($group.value.scope) {
                     $assignmentScope = $group.value.scope
                 } else {
                     $assignmentScope = 'entire_helpdesk'
                 }
+                # If role not defined, make role Inspira IT Agent
+                if ($group.Value.fsroleID) {
+                    $fsroleID = $group.value.fsroleID
+                } else {
+                    $fsroleID = 23000234020
+                }
 
                 $body = @{
                     roles = @(
                         @{
-                            role_id = $group.Value.fsroleID
+                            role_id = $group.Value.fsroleID 
                             assignment_scope = $assignmentScope
                         }
                     )
                 }
+
                 # Todo: Ternary operators supported in PS7
                 <#
                     $body = @{
@@ -120,9 +121,10 @@ function Set-FsUsers {
                     }
                 #>
 
-
+                # Non-Group roles must be added via a user call
                 foreach ($globalGroup in $FsGlobalADGroups.Keys){
                     $globalGroupMembers = Get-ADGroupMember -server $adDomain -identity $globalGroup -credential $credential
+                        # Query User Group Membership
                         if ($globalGroupMembers.samAccountName -contains $user.samaccountName) {
                             # Add Role Assignment without Group tie-in
                             $body.roles += @{
@@ -132,16 +134,30 @@ function Set-FsUsers {
                     }
                 }
             }
+            # Update User Roles
             (Invoke-RestMethod -Uri "https://$($FsDomain).freshservice.com/api/v2/agents/$($fsUser.ID)?can_see_all_tickets_from_associated_departments=True" -Method Put -Headers $headers -Body ($body | ConvertTo-JSON)).agent
+
+            # Add User to Member Array for Assignment
             $fsGroupMembers += $fsUser.ID
         }
 
+        # Create Empty Array for Group Observers
         $fsGroupObservers = @()
+
         $groupObservers = Get-AdGroupMember -server $adDomain -identity "$($group.Key)-Observers" -Recursive -credential $credential | Where-Object { $_.objectClass -eq 'user' }
-        foreach ($samAccountName in $groupObservers.samAccountName) {
-            $user = Get-ADUser -server $adDomain -Identity $samAccountName -credential $credential -Properties extensionAttribute3, UserPrincipalName
-            $fsUser = (Invoke-RestMethod -Headers $headers -Method GET -Uri "https://$($FsDomain).freshservice.com/api/v2/requesters?include_agents=true&$(Convert-UPNToURLEncoded $user.UserPrincipalName)").requesters[0]
-            $fsGroupObservers += $fsuser.Id
+        if ($groupObservers) {
+            foreach ($samAccountName in $groupObservers.samAccountName) {
+                # AD Lookup
+                $user = Get-ADUser -server $adDomain -Identity $samAccountName -credential $credential -Properties extensionAttribute3, UserPrincipalName
+                # Parse FreshService Info
+                $fsUser = (Invoke-RestMethod -Headers $headers -Method GET -Uri "https://$($FsDomain).freshservice.com/api/v2/requesters?include_agents=true&$(Convert-UPNToURLEncoded $user.UserPrincipalName)").requesters[0]
+
+                if ($debug) {
+                    Write-Output("Adding $samAccountName to $($group.key) as observer")
+                }
+                # Add User to Observer Array for Assignment
+                $fsGroupObservers += $fsuser.Id
+            }
         }
 
         $groupBody = @{
@@ -149,6 +165,8 @@ function Set-FsUsers {
             observers = $fsGroupObservers
         } | ConvertTo-Json
             if ($debug) {
+                Write-Output "`nObservers"
+                Write-Output $fsGroupObservers                
                 $uri = "https://$($FsDomain).freshservice.com/api/v2/groups/$($group.value.fsGroup)"
                 Write-Output "`nHeaders:"
                 Write-Output $headers
@@ -157,18 +175,23 @@ function Set-FsUsers {
                 Write-Output "`nUri:"
                 Write-Output $uri
             }
-
+        # Update the Group
         (Invoke-RestMethod -Uri "https://$($FsDomain).freshservice.com/api/v2/groups/$($group.value.fsGroup)" -Method Put -Headers $headers -Body $groupBody).Value
     }
-
+    
+    # Ungrouped FreshService Users 
     $groupMembers = Get-AdGroupMember -server $adDomain -identity $noGroup -Recursive -credential $credential | Where-Object { $_.objectClass -eq 'user' }
     if ($groupMembers) {
         Write-Output("Setting users from $noGroup")
     }
+    
     foreach ($samAccountName in $groupMembers.samAccountName) {
+        # Get AD User
         $user = Get-ADUser -server $adDomain -Identity $samAccountName -credential $credential -Properties extensionAttribute3, UserPrincipalName
+        # Parse FreshService Info
         $fsUser = (Invoke-RestMethod -Headers $headers -Method GET -Uri "https://$($FsDomain).freshservice.com/api/v2/requesters?include_agents=true&$(Convert-UPNToURLEncoded $user.UserPrincipalName)").requesters[0]
             
+        # Prepare to add roles to user if the user is an Agent
         if (($fsUser.is_agent) -and (-not($fsUser -eq $null))) {
             Write-Output("Found Agent $($user.Samaccountname)")
             $body = @{
@@ -197,6 +220,7 @@ function Set-FsUsers {
                 Write-Output "`nUri:"
                 Write-Output $uri
             }
+            # Update Agent
             (Invoke-RestMethod -Uri $uri -Method Put -Headers $headers -Body ($body | ConvertTo-JSON)).agent
         }
     }
