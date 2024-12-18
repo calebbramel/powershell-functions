@@ -1,5 +1,5 @@
 $FsRequesterADGroups = @{
-    #"FsChangeRequesters" = 00000000000
+    "FsChangeRequesters" = 00000000000
 }
 $FsAgentADGroups = @{
     # AD Group = @{ roleID; groupID; [optional]scope } 
