@@ -122,13 +122,13 @@ function Set-FsUsers {
                 #>
 
                 # Non-Group roles must be added via a user call
-                foreach ($globalGroup in $FsGlobalADGroups.Keys){
-                    $globalGroupMembers = Get-ADGroupMember -server $adDomain -identity $globalGroup -credential $credential
+                foreach ($globalRole in $FsGlobalADGroups.Keys){
+                    $globalRoleMembers = Get-ADGroupMember -server $adDomain -identity $globalRole -credential $credential
                         # Query User Group Membership
-                        if ($globalGroupMembers.samAccountName -contains $user.samaccountName) {
+                        if ($globalRoleMembers.samAccountName -contains $user.samaccountName) {
                             # Add Role Assignment without Group tie-in
                             $body.roles += @{
-                                role_id = $FsGlobalADGroups[$globalGroup]
+                                role_id = $FsGlobalADGroups[$globalRole]
                                 assignment_scope = 'entire_helpdesk'
                         }
                     }
@@ -200,13 +200,13 @@ function Set-FsUsers {
                 )
             }
 
-            foreach ($globalGroup in $FsGlobalADGroups.Keys){
-                $globalGroupMembers = Get-ADGroupMember -server $adDomain -identity $globalGroup -credential $credential
-                if ($globalGroupMembers.samAccountName -contains $user.samaccountName) {
-                    Write-Output("Adding $($user.Samaccountname) to $globalGroup")
+            foreach ($globalRole in $FsGlobalADGroups.Keys){
+                $globalRoleMembers = Get-ADGroupMember -server $adDomain -identity $globalRole -credential $credential
+                if ($globalRoleMembers.samAccountName -contains $user.samaccountName) {
+                    Write-Output("Adding $($user.Samaccountname) to $globalRole")
                     # Add Role Assignment without Group tie-in
                     $body.roles += @{
-                        role_id = $FsGlobalADGroups[$globalGroup]
+                        role_id = $FsGlobalADGroups[$globalRole]
                         assignment_scope = 'entire_helpdesk'
                     }
                 }
